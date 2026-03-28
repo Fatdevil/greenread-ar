@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- strings.xml — GreenRead AR (Svenska) -->
+<resources>
+    <string name="app_name">GreenRead AR</string>
+
+    <!-- Splash -->
+    <string name="splash_subtitle">Läs greenen med AR</string>
+    <string name="splash_start">Börja scanna</string>
+    <string name="splash_ar_required">ARCore krävs</string>
+    <string name="splash_ar_not_supported">Din enhet stöder inte ARCore Depth API.\nGreenRead AR kräver en kompatibel enhet med djupsensor.</string>
+
+    <!-- Camera / Scanning -->
+    <string name="mode_scanning">Scanning pågår…</string>
+    <string name="mode_place_hole">Tryck för att placera hål ⛳</string>
+    <string name="mode_place_ball">Tryck för att placera boll 🏌️</string>
+    <string name="mode_ready">Redo att rulla 🎯</string>
+    <string name="mode_rolling">Bollen rullar…</string>
+    <string name="mode_result">Resultat</string>
+    <string name="green_detected">Green detekterad ✓</string>
+    <string name="roll_ball">Rulla boll</string>
+    <string name="reset">Återställ</string>
+
+    <!-- HUD -->
+    <string name="hud_slope">Lutning</string>
+    <string name="hud_distance">Avstånd</string>
+    <string name="hud_break">Break</string>
+
+    <!-- Results -->
+    <string name="result_title">Puttanalys</string>
+    <string name="result_distance">Avstånd</string>
+    <string name="result_break">Max break</string>
+    <string name="result_slope">Medellutning</string>
+    <string name="result_elevation">Höjdskillnad</string>
+    <string name="result_speed">Hastighetsrek.</string>
+    <string name="result_speed_perfect">Perfekt</string>
+    <string name="result_speed_harder">Slå hårdare</string>
+    <string name="result_speed_softer">Slå mjukare</string>
+    <string name="result_direction_left">Vänster</string>
+    <string name="result_direction_right">Höger</string>
+    <string name="result_direction_straight">Rak putt</string>
+    <string name="result_uphill">Uppförsbacke</string>
+    <string name="result_downhill">Nedförsbacke</string>
+    <string name="result_flat">Plant</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Inställningar</string>
+    <string name="settings_stimpmeter">Stimpmeter</string>
+    <string name="settings_stimpmeter_desc">Greenens hastighet (7 = långsam, 13 = snabb)</string>
+    <string name="settings_units">Enheter</string>
+    <string name="settings_metric">Meter</string>
+    <string name="settings_imperial">Fot/Yard</string>
+    <string name="settings_break_unit">Break-enhet</string>
+    <string name="settings_cm">Centimeter</string>
+    <string name="settings_inches">Tum</string>
+    <string name="settings_premium">Premium</string>
+    <string name="settings_premium_desc">Lås upp alla funktioner</string>
+    <string name="settings_restore">Återställ köp</string>
+    <string name="settings_version">Version</string>
+
+    <!-- Premium -->
+    <string name="premium_title">GreenRead AR Premium</string>
+    <string name="premium_feature_1">Obegränsade skanningar</string>
+    <string name="premium_feature_2">Break-kurva och hastighetsrec.</string>
+    <string name="premium_feature_3">Stimpmeter-inställning</string>
+    <string name="premium_feature_4">Exportera puttanalyser</string>
+    <string name="premium_buy">Uppgradera till Premium</string>
+    <string name="premium_family">Familjepaket (5 användare)</string>
+
+    <!-- Errors -->
+    <string name="error_camera">Kamerabehörighet krävs</string>
+    <string name="error_arcore">ARCore kunde inte startas</string>
+    <string name="error_purchase">Köp misslyckades</string>
+</resources>
