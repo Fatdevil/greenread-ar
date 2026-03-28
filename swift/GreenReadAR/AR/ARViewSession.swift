@@ -38,10 +38,8 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
     var onBallStopped: ((BallRollResult) -> Void)?
     var onSlopeUpdated: ((SlopeInfo) -> Void)?
     
-    // MARK: - Mesh Data Cache
-    private var meshVertices: [SIMD3<Float>] = []
-    private var meshNormals: [SIMD3<Float>] = []
-    private var meshTriangles: [(Int, Int, Int)] = []
+    // Mesh data is queried via raycasts (heightAt/normalAt)
+    // No cached arrays needed — prevents memory leak during scanning
     
     // MARK: - Init
     func configureARView(_ arView: ARView) {
@@ -87,9 +85,6 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
         arView?.session.pause()
         stopBallSimulation()
         clearEntities()
-        meshVertices.removeAll()
-        meshNormals.removeAll()
-        meshTriangles.removeAll()
     }
     
     // MARK: - Mesh Queries
@@ -240,11 +235,15 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
     }
     
     private func startBallSimulation() {
-        let timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
-            guard let self = self else { timer.invalidate(); return }
-            self.updateBall(deltaTime: Float(1.0 / 60.0))
-        }
-        RunLoop.current.add(timer, forMode: .common)
+        displayLink = CADisplayLink(target: self,
+            selector: #selector(displayLinkUpdate))
+        displayLink?.add(to: .current, forMode: .common)
+    }
+    
+    @objc private func displayLinkUpdate() {
+        guard let link = displayLink else { return }
+        let deltaTime = Float(link.targetTimestamp - link.timestamp)
+        updateBall(deltaTime: deltaTime)
     }
     
     private func updateBall(deltaTime: Float) {
@@ -274,6 +273,8 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
     
     private func stopBallSimulation() {
         isBallRolling = false
+        displayLink?.invalidate()
+        displayLink = nil
     }
     
     // MARK: - Rendering Updates
@@ -299,19 +300,13 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
 extension ARViewSession: ARSessionDelegate {
     
     func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
-        for anchor in anchors {
-            guard let meshAnchor = anchor as? ARMeshAnchor else { continue }
-            processMeshAnchor(meshAnchor)
-        }
+        // Mesh anchors are handled automatically by RealityKit's
+        // sceneUnderstanding — no manual vertex extraction needed.
+        // Slope queries use direct raycasts via heightAt/normalAt.
     }
     
     func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
-        for anchor in anchors {
-            guard let meshAnchor = anchor as? ARMeshAnchor else { continue }
-            processMeshAnchor(meshAnchor)
-        }
-        
-        // Update scan progress
+        // Update scan progress based on anchor count
         scanProgress = min(1.0, scanProgress + 0.01)
         
         if scanProgress >= 0.5 && !isGreenDetected {
@@ -319,44 +314,6 @@ extension ARViewSession: ARSessionDelegate {
             DispatchQueue.main.async { [weak self] in
                 self?.onGreenDetected?()
             }
-        }
-    }
-    
-    /// Process ARMeshAnchor to extract geometry for slope analysis
-    /// PRD §2.2: Extract normal vectors per triangle
-    private func processMeshAnchor(_ meshAnchor: ARMeshAnchor) {
-        let geometry = meshAnchor.geometry
-        let transform = meshAnchor.transform
-        
-        // Extract vertices
-        let vertexBuffer = geometry.vertices
-        let vertexCount = vertexBuffer.count
-        
-        for i in 0..<vertexCount {
-            let vertexPointer = vertexBuffer.buffer.contents()
-                .advanced(by: vertexBuffer.offset + vertexBuffer.stride * i)
-            let vertex = vertexPointer.assumingMemoryBound(to: SIMD3<Float>.self).pointee
-            
-            // Transform to world space
-            let worldVertex = transform * SIMD4<Float>(vertex, 1)
-            meshVertices.append(SIMD3<Float>(worldVertex.x, worldVertex.y, worldVertex.z))
-        }
-        
-        // Extract normals
-        let normalBuffer = geometry.normals
-        for i in 0..<normalBuffer.count {
-            let normalPointer = normalBuffer.buffer.contents()
-                .advanced(by: normalBuffer.offset + normalBuffer.stride * i)
-            let normal = normalPointer.assumingMemoryBound(to: SIMD3<Float>.self).pointee
-            
-            // Transform normal to world space (rotation only)
-            let rotation = simd_float3x3(
-                SIMD3<Float>(transform.columns.0.x, transform.columns.0.y, transform.columns.0.z),
-                SIMD3<Float>(transform.columns.1.x, transform.columns.1.y, transform.columns.1.z),
-                SIMD3<Float>(transform.columns.2.x, transform.columns.2.y, transform.columns.2.z)
-            )
-            let worldNormal = normalize(rotation * normal)
-            meshNormals.append(worldNormal)
         }
     }
 }

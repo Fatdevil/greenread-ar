@@ -48,7 +48,7 @@ final class BallPhysicsEngine {
     static let minSpeed: Float = 0.02        // m/s — stop threshold (PRD §2.2)
     
     // MARK: - Properties
-    private weak var terrain: ARViewSession?
+    private weak var terrain: (AnyObject & GreenReadSession)?
     private let stimpmeter: Float
     private let frictionCoeff: Float
     
@@ -64,7 +64,7 @@ final class BallPhysicsEngine {
     private let maxTrailPoints = 500
     
     // MARK: - Init
-    init(terrain: ARViewSession, stimpmeter: Float) {
+    init(terrain: any GreenReadSession & AnyObject, stimpmeter: Float) {
         self.terrain = terrain
         self.stimpmeter = max(7, min(13, stimpmeter))
         
