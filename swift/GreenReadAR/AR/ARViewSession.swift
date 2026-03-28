@@ -6,6 +6,7 @@
 import SwiftUI
 import ARKit
 import RealityKit
+import UIKit
 import Combine
 
 /// iPhone-specific implementation of GreenReadSession using ARView.
@@ -27,6 +28,11 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
     // Physics
     private var ballPhysics: BallPhysicsEngine?
     private var displayLink: CADisplayLink?
+    
+    // Fas 2: Rendering & capture
+    private var frameCounter: Int = 0
+    private let trailUpdateInterval: Int = 10  // Update trail every N frames (performance)
+    private var isBallCaptured: Bool = false
     
     // Session protocol conformance
     var scanProgress: Float = 0.0
@@ -229,6 +235,14 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
         
         ballPhysics?.initRoll(from: ballPos, toward: holePos)
         isBallRolling = true
+        isBallCaptured = false
+        frameCounter = 0
+        
+        // Remove previous trail/curve
+        trailEntity?.removeFromParent()
+        trailEntity = nil
+        breakCurveEntity?.removeFromParent()
+        breakCurveEntity = nil
         
         // Start simulation timer
         startBallSimulation()
@@ -253,18 +267,99 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
         }
         
         let result = physics.update(deltaTime: deltaTime)
+        frameCounter += 1
         
         // Update ball entity position
         if let ballAnchor = ballEntity {
             ballAnchor.setPosition(result.position, relativeTo: nil)
+            
+            // PRD §7.1 Fas 2: Rotating ball motion (not sliding)
+            if let ballModel = ballAnchor.children.first as? ModelEntity {
+                let speed = length(result.velocity)
+                if speed > 0.01 {
+                    let direction = normalize(result.velocity)
+                    // Roll axis perpendicular to velocity direction (cross with up)
+                    let rollAxis = normalize(SIMD3<Float>(-direction.z, 0, direction.x))
+                    // Angular velocity = linear speed / ball radius
+                    let angularSpeed = speed / BallPhysicsEngine.ballRadius
+                    let rotationDelta = simd_quatf(angle: angularSpeed * deltaTime, axis: rollAxis)
+                    ballModel.orientation = rotationDelta * ballModel.orientation
+                }
+            }
         }
         
-        // Check if ball stopped
-        if !physics.isRolling {
+        // Fas 2: Update trail every N frames (performance optimization)
+        if frameCounter % trailUpdateInterval == 0, let arView = arView {
+            trailEntity?.removeFromParent()
+            let trail = BallRollRenderer.createTrail(from: physics.trail)
+            arView.scene.anchors.first?.addChild(trail)
+            trailEntity = trail
+        }
+        
+        // Fas 2: Check hole capture every frame
+        if !isBallCaptured, let holeAnchor = holeEntity {
+            let holePos = holeAnchor.position(relativeTo: nil)
+            let ballSpeed = length(result.velocity)
+            
+            if HoleCaptureDetector.checkCapture(
+                ballPosition: result.position,
+                holePosition: holePos,
+                ballSpeed: ballSpeed
+            ) {
+                // Ball captured!
+                isBallCaptured = true
+                isBallRolling = false
+                
+                // Stop physics
+                stopBallSimulation()
+                
+                // Render final trail
+                trailEntity?.removeFromParent()
+                let finalTrail = BallRollRenderer.createTrail(from: physics.trail)
+                arView?.scene.anchors.first?.addChild(finalTrail)
+                trailEntity = finalTrail
+                BallRollRenderer.fadeTrail(entity: finalTrail, after: 3.0)
+                
+                // Trigger capture animation + haptic
+                if let ballAnchor = ballEntity, let arView = arView {
+                    HoleCaptureDetector.triggerCaptureAnimation(
+                        ballEntity: ballAnchor,
+                        holeEntity: holeAnchor,
+                        in: arView
+                    ) { [weak self] in
+                        // Send results after animation completes
+                        let rollResult = physics.calculateResult(holePosition: holePos)
+                        self?.onBallStopped?(rollResult)
+                    }
+                }
+                
+                // Haptic feedback — medium impact
+                let feedback = UIImpactFeedbackGenerator(style: .medium)
+                feedback.prepare()
+                feedback.impactOccurred()
+                
+                return
+            }
+        }
+        
+        // Check if ball stopped (no capture)
+        if !physics.isRolling && !isBallCaptured {
             isBallRolling = false
             
+            // Render final trail with fade
+            trailEntity?.removeFromParent()
+            let finalTrail = BallRollRenderer.createTrail(from: physics.trail)
+            arView?.scene.anchors.first?.addChild(finalTrail)
+            trailEntity = finalTrail
+            BallRollRenderer.fadeTrail(entity: finalTrail, after: 3.0)
+            
+            // Create break curve visualization
             if let holeAnchor = holeEntity {
                 let holePos = holeAnchor.position(relativeTo: nil)
+                let breakCurve = BallRollRenderer.createBreakCurve(from: physics.trail)
+                arView?.scene.anchors.first?.addChild(breakCurve)
+                breakCurveEntity = breakCurve
+                
                 let rollResult = physics.calculateResult(holePosition: holePos)
                 onBallStopped?(rollResult)
             }
