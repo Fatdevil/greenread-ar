@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>GreenRead AR — Golf Green Reading</title>
+  <meta name="description" content="GreenRead AR uses LiDAR and AR to scan putting greens and simulate ball rolls in augmented reality.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- ============ SPLASH / ONBOARDING ============ -->
+  <div id="splash-screen" class="screen active">
+    <div class="splash-content">
+      <div class="splash-icon">
+        <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+          <circle cx="40" cy="40" r="38" stroke="url(#grad1)" stroke-width="2" fill="none"/>
+          <circle cx="40" cy="40" r="12" fill="#1A7A4A"/>
+          <circle cx="40" cy="40" r="5" fill="#FACC15"/>
+          <!-- Scan lines -->
+          <line x1="40" y1="8" x2="40" y2="20" stroke="#1A7A4A" stroke-width="1.5" opacity="0.6"/>
+          <line x1="40" y1="60" x2="40" y2="72" stroke="#1A7A4A" stroke-width="1.5" opacity="0.6"/>
+          <line x1="8" y1="40" x2="20" y2="40" stroke="#1A7A4A" stroke-width="1.5" opacity="0.6"/>
+          <line x1="60" y1="40" x2="72" y2="40" stroke="#1A7A4A" stroke-width="1.5" opacity="0.6"/>
+          <defs>
+            <linearGradient id="grad1" x1="0" y1="0" x2="80" y2="80">
+              <stop offset="0%" stop-color="#1A7A4A"/>
+              <stop offset="100%" stop-color="#3B82F6"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <h1 class="splash-title">GreenRead <span class="accent">AR</span></h1>
+      <p class="splash-subtitle">Läs greenen. Se breaken. Sänk putten.</p>
+      <div class="splash-features">
+        <div class="feature-item">
+          <span class="feature-icon">📡</span>
+          <span>LiDAR-scanning av greenens yta</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-icon">🎯</span>
+          <span>Färgkodat lutningsrutnät i AR</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-icon">⛳</span>
+          <span>Simulerad bollrullning med break</span>
+        </div>
+      </div>
+      <button id="btn-start" class="btn-primary">
+        <span>Börja scanna</span>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M7 4l8 6-8 6V4z" fill="currentColor"/>
+        </svg>
+      </button>
+      <p class="splash-note">Kräver LiDAR-kompatibel enhet (iPhone 12 Pro+)</p>
+    </div>
+  </div>
+
+  <!-- ============ CAMERA / SCANNING VIEW ============ -->
+  <div id="camera-screen" class="screen">
+    <!-- Three.js Canvas -->
+    <canvas id="ar-canvas"></canvas>
+
+    <!-- Scanning Status Badge -->
+    <div id="scan-badge" class="scan-badge">
+      <div class="scan-pulse"></div>
+      <span id="scan-text">Scanning...</span>
+    </div>
+
+    <!-- Mode Indicator -->
+    <div id="mode-indicator" class="mode-indicator">
+      <span id="mode-text">Tryck för att placera hål ⛳</span>
+    </div>
+
+    <!-- Crosshair -->
+    <div id="crosshair" class="crosshair">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="15" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+        <circle cx="20" cy="20" r="3" fill="rgba(255,255,255,0.6)"/>
+        <line x1="20" y1="0" x2="20" y2="10" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+        <line x1="20" y1="30" x2="20" y2="40" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+        <line x1="0" y1="20" x2="10" y2="20" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+        <line x1="30" y1="20" x2="40" y2="20" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+      </svg>
+    </div>
+
+    <!-- Slope Info HUD -->
+    <div id="slope-hud" class="slope-hud hidden">
+      <div class="slope-value">
+        <span class="slope-label">Lutning</span>
+        <span id="slope-degrees" class="slope-number">0.0°</span>
+      </div>
+      <div class="slope-divider"></div>
+      <div class="slope-value">
+        <span class="slope-label">Gradient</span>
+        <span id="slope-percent" class="slope-number">0.0%</span>
+      </div>
+      <div class="slope-divider"></div>
+      <div class="slope-value">
+        <span class="slope-label">Riktning</span>
+        <span id="slope-direction" class="slope-number">—</span>
+      </div>
+    </div>
+
+    <!-- Distance Display -->
+    <div id="distance-display" class="distance-display hidden">
+      <span id="distance-value">0.0 m</span>
+    </div>
+
+    <!-- Top Controls -->
+    <div class="top-controls">
+      <button id="btn-settings" class="btn-icon" aria-label="Settings">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div class="bottom-controls">
+      <button id="btn-roll" class="btn-roll hidden" aria-label="Roll ball">
+        <span class="btn-roll-inner">Rulla boll</span>
+      </button>
+      <button id="btn-reset" class="btn-reset hidden" aria-label="Reset">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 10a7 7 0 0114 0 7 7 0 01-14 0z"/>
+          <path d="M3 4v4h4"/>
+        </svg>
+        <span>Återställ</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ RESULTS PANEL (slide-up) ============ -->
+  <div id="results-panel" class="results-panel hidden">
+    <div class="results-handle"></div>
+    <h2 class="results-title">Putt-analys</h2>
+    <div class="results-grid">
+      <div class="result-card">
+        <span class="result-label">Avstånd</span>
+        <span id="result-distance" class="result-value">0.0 m</span>
+      </div>
+      <div class="result-card">
+        <span class="result-label">Break</span>
+        <span id="result-break" class="result-value">0 cm</span>
+        <span id="result-break-dir" class="result-sub">—</span>
+      </div>
+      <div class="result-card">
+        <span class="result-label">Lutning</span>
+        <span id="result-slope" class="result-value">0.0%</span>
+        <span id="result-slope-type" class="result-sub">—</span>
+      </div>
+      <div class="result-card">
+        <span class="result-label">Greenshastighet</span>
+        <span id="result-stimp" class="result-value">10</span>
+        <span class="result-sub">Stimp</span>
+      </div>
+    </div>
+    <div class="speed-recommendation">
+      <div class="speed-label">Slaghastighet</div>
+      <div id="speed-bar" class="speed-bar">
+        <div id="speed-fill" class="speed-fill"></div>
+        <div id="speed-marker" class="speed-marker"></div>
+      </div>
+      <div class="speed-labels">
+        <span>Mjukt</span>
+        <span>Normalt</span>
+        <span>Hårt</span>
+      </div>
+      <div id="speed-text" class="speed-text">Normalt slag</div>
+    </div>
+    <div class="results-actions">
+      <button id="btn-roll-again" class="btn-secondary">Rulla igen</button>
+      <button id="btn-new-scan" class="btn-secondary">Ny scanning</button>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS PANEL ============ -->
+  <div id="settings-panel" class="settings-panel hidden">
+    <div class="settings-header">
+      <h2>Inställningar</h2>
+      <button id="btn-close-settings" class="btn-icon-small" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M5 5l10 10M15 5l-10 10"/>
+        </svg>
+      </button>
+    </div>
+    <div class="settings-body">
+      <div class="setting-group">
+        <label class="setting-label">Greenshastighet (Stimpmeter)</label>
+        <div class="stimp-control">
+          <input type="range" id="stimp-slider" min="7" max="13" step="0.5" value="10" class="stimp-slider">
+          <span id="stimp-value" class="stimp-value">10.0</span>
+        </div>
+        <div class="stimp-labels">
+          <span>7 — Långsam</span>
+          <span>10 — Normal</span>
+          <span>13 — Snabb</span>
+        </div>
+      </div>
+      <div class="setting-group">
+        <label class="setting-label">Måttenhet</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-unit="metric">Meter</button>
+          <button class="toggle-btn" data-unit="imperial">Yard</button>
+        </div>
+      </div>
+      <div class="setting-group">
+        <label class="setting-label">Break-visning</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-break="cm">Centimeter</button>
+          <button class="toggle-btn" data-break="inch">Tum</button>
+        </div>
+      </div>
+      <div class="setting-group premium-gate">
+        <div class="premium-badge">PREMIUM</div>
+        <label class="setting-label">Antal bollar</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-balls="1">1</button>
+          <button class="toggle-btn" data-balls="3">3</button>
+          <button class="toggle-btn" data-balls="5">5</button>
+        </div>
+      </div>
+      <div class="setting-group">
+        <button id="btn-premium" class="btn-premium">
+          <span class="premium-icon">⭐</span>
+          <div class="premium-info">
+            <span class="premium-title">Uppgradera till Premium</span>
+            <span class="premium-price">99 kr — Engångsköp</span>
+          </div>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M7 4l8 6-8 6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="green.js"></script>
+  <script src="physics.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
