@@ -24,6 +24,7 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
     private var gridEntity: Entity?
     private var trailEntity: Entity?
     private var breakCurveEntity: Entity?
+    private var overlayAnchor: AnchorEntity?
     
     // Physics
     private var ballPhysics: BallPhysicsEngine?
@@ -46,6 +47,14 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
     
     // Mesh data is queried via raycasts (heightAt/normalAt)
     // No cached arrays needed — prevents memory leak during scanning
+    
+    // MARK: - Overlay Anchor
+    private func ensureOverlayAnchor() {
+        guard overlayAnchor == nil, let arView = arView else { return }
+        let anchor = AnchorEntity(world: .zero)
+        arView.scene.addAnchor(anchor)
+        overlayAnchor = anchor
+    }
     
     // MARK: - Init
     func configureARView(_ arView: ARView) {
@@ -212,12 +221,14 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
         gridEntity?.removeFromParent()
         trailEntity?.removeFromParent()
         breakCurveEntity?.removeFromParent()
+        overlayAnchor?.removeFromParent()
         
         holeEntity = nil
         ballEntity = nil
         gridEntity = nil
         trailEntity = nil
         breakCurveEntity = nil
+        overlayAnchor = nil
     }
     
     // MARK: - Ball Simulation
@@ -243,6 +254,9 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
         trailEntity = nil
         breakCurveEntity?.removeFromParent()
         breakCurveEntity = nil
+        
+        // Ensure overlay anchor for trail/curve rendering
+        ensureOverlayAnchor()
         
         // Start simulation timer
         startBallSimulation()
@@ -289,10 +303,10 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
         }
         
         // Fas 2: Update trail every N frames (performance optimization)
-        if frameCounter % trailUpdateInterval == 0, let arView = arView {
+        if frameCounter % trailUpdateInterval == 0 {
             trailEntity?.removeFromParent()
             let trail = BallRollRenderer.createTrail(from: physics.trail)
-            arView.scene.anchors.first?.addChild(trail)
+            overlayAnchor?.addChild(trail)
             trailEntity = trail
         }
         
@@ -316,7 +330,7 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
                 // Render final trail
                 trailEntity?.removeFromParent()
                 let finalTrail = BallRollRenderer.createTrail(from: physics.trail)
-                arView?.scene.anchors.first?.addChild(finalTrail)
+                overlayAnchor?.addChild(finalTrail)
                 trailEntity = finalTrail
                 BallRollRenderer.fadeTrail(entity: finalTrail, after: 3.0)
                 
@@ -349,7 +363,7 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
             // Render final trail with fade
             trailEntity?.removeFromParent()
             let finalTrail = BallRollRenderer.createTrail(from: physics.trail)
-            arView?.scene.anchors.first?.addChild(finalTrail)
+            overlayAnchor?.addChild(finalTrail)
             trailEntity = finalTrail
             BallRollRenderer.fadeTrail(entity: finalTrail, after: 3.0)
             
@@ -357,7 +371,7 @@ final class ARViewSession: NSObject, GreenReadSession, ObservableObject {
             if let holeAnchor = holeEntity {
                 let holePos = holeAnchor.position(relativeTo: nil)
                 let breakCurve = BallRollRenderer.createBreakCurve(from: physics.trail)
-                arView?.scene.anchors.first?.addChild(breakCurve)
+                overlayAnchor?.addChild(breakCurve)
                 breakCurveEntity = breakCurve
                 
                 let rollResult = physics.calculateResult(holePosition: holePos)
