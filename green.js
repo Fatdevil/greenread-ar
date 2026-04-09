@@ -22,6 +22,18 @@ class GreenTerrain {
     return this;
   }
 
+  async loadFromJSON(url) {
+    const res = await fetch(url);
+    const data = await res.json();
+    this.width = data.metadata.width;
+    this.depth = data.metadata.depth;
+    this.resolution = data.metadata.resolution;
+    this.heightMap = data.points;
+    this.createGreenMesh();
+    this.createSlopeGrid();
+    return this;
+  }
+
   generateHeightMap() {
     // Build a realistic undulating green with subtle breaks
     const w = this.resolution + 1;
@@ -155,37 +167,11 @@ class GreenTerrain {
       const worldZ = z;
       const slope = this.getSlopeAt(worldX, worldZ);
 
-      let r, g, b;
-      if (slope.degrees < 0.8) {
-        // Flat — green
-        r = 0.133; g = 0.773; b = 0.369;
-      } else if (slope.degrees < 2.5) {
-        // Moderate slope — blend
-        const t = (slope.degrees - 0.8) / 1.7;
-        // Check if uphill or downhill based on z-component of fall direction
-        if (slope.fallDir.z > 0.1) {
-          // Downhill (towards camera) — blue
-          r = 0.133 + t * (0.231 - 0.133);
-          g = 0.773 + t * (0.510 - 0.773);
-          b = 0.369 + t * (0.965 - 0.369);
-        } else {
-          // Uphill — red/orange
-          r = 0.133 + t * (0.937 - 0.133);
-          g = 0.773 + t * (0.267 - 0.773);
-          b = 0.369 + t * (0.267 - 0.369);
-        }
-      } else {
-        // Steep slope — saturated
-        if (slope.fallDir.z > 0.1) {
-          r = 0.231; g = 0.510; b = 0.965; // Blue
-        } else {
-          r = 0.937; g = 0.267; b = 0.267; // Red
-        }
-      }
+      const color = this.slopeToColor(slope, worldX, worldZ);
 
-      colors[i * 3] = r;
-      colors[i * 3 + 1] = g;
-      colors[i * 3 + 2] = b;
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
     }
 
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -233,7 +219,7 @@ class GreenTerrain {
         points.push(new THREE.Vector3(x, h + 0.005, z));
 
         const slope = this.getSlopeAt(x, z);
-        const color = this.slopeToColor(slope);
+        const color = this.slopeToColor(slope, x, z);
         lineColors.push(color.r, color.g, color.b);
       }
 
@@ -255,7 +241,7 @@ class GreenTerrain {
         points.push(new THREE.Vector3(x, h + 0.005, z));
 
         const slope = this.getSlopeAt(x, z);
-        const color = this.slopeToColor(slope);
+        const color = this.slopeToColor(slope, x, z);
         lineColors.push(color.r, color.g, color.b);
       }
 
@@ -269,33 +255,33 @@ class GreenTerrain {
     this.scene.add(gridGroup);
   }
 
-  slopeToColor(slope) {
+  slopeToColor(slope, worldX, worldZ) {
     const d = slope.degrees;
+    
+    // Använd faktisk höjdskillnad för att se om det går nedåt norrut eller söderut
+    const hN = this.getHeightAt(worldX, worldZ - 0.1);
+    const hS = this.getHeightAt(worldX, worldZ + 0.1);
+    const isDownhillTowardsCamera = hS > hN;
+
     if (d < 0.8) {
       return { r: 0.133, g: 0.773, b: 0.369 }; // Green
-    } else if (d < 3.0) {
-      const t = (d - 0.8) / 2.2;
-      if (slope.fallDir.z > 0.1) {
-        // Downhill — to blue
-        return {
-          r: 0.133 + t * (0.231 - 0.133),
-          g: 0.773 + t * (0.510 - 0.773),
-          b: 0.369 + t * (0.965 - 0.369)
-        };
-      } else {
-        // Uphill — to red
-        return {
-          r: 0.133 + t * (0.937 - 0.133),
-          g: 0.773 + t * (0.267 - 0.773),
-          b: 0.369 + t * (0.267 - 0.369)
-        };
-      }
+    } 
+    
+    const t = Math.min(1, (d - 0.8) / 2.2);
+    if (isDownhillTowardsCamera) {
+      // Downhill (towards camera) — to blue
+      return {
+        r: 0.133 + t * (0.231 - 0.133),
+        g: 0.773 + t * (0.510 - 0.773),
+        b: 0.369 + t * (0.965 - 0.369)
+      };
     } else {
-      if (slope.fallDir.z > 0.1) {
-        return { r: 0.231, g: 0.510, b: 0.965 };
-      } else {
-        return { r: 0.937, g: 0.267, b: 0.267 };
-      }
+      // Uphill — to red/orange
+      return {
+        r: 0.133 + t * (0.937 - 0.133),
+        g: 0.773 + t * (0.267 - 0.773),
+        b: 0.369 + t * (0.267 - 0.369)
+      };
     }
   }
 }

@@ -152,6 +152,18 @@ class BallPhysics {
         break;
       }
 
+      // Soft capture zone (gravity lip of the hole)
+      if (typeof App !== 'undefined' && App.holeMesh) {
+        const dx = this.position.x - App.holeMesh.position.x;
+        const dz = this.position.z - App.holeMesh.position.z;
+        const distToHole = Math.sqrt(dx*dx + dz*dz);
+        
+        if (distToHole < 0.15) {
+          const brakeFactor = distToHole / 0.15;
+          this.velocity.multiplyScalar(0.85 + brakeFactor * 0.15);
+        }
+      }
+
       // Check stop condition
       if (speed < this.minSpeed && this.totalDistance > 0.1) {
         this.isRolling = false;

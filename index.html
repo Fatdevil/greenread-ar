@@ -47,6 +47,10 @@
           <span class="feature-icon">⛳</span>
           <span>Simulerad bollrullning med break</span>
         </div>
+        <div class="feature-item practice-note">
+          <span class="feature-icon">⚠️</span>
+          <span>Practice Mode — ej godkänd för tävlingsspel (R&amp;A Rule 4.3)</span>
+        </div>
       </div>
       <button id="btn-start" class="btn-primary">
         <span>Börja scanna</span>
@@ -60,6 +64,8 @@
 
   <!-- ============ CAMERA / SCANNING VIEW ============ -->
   <div id="camera-screen" class="screen">
+    <!-- Live Camera Feed -->
+    <video id="ar-video" autoplay playsinline muted></video>
     <!-- Three.js Canvas -->
     <canvas id="ar-canvas"></canvas>
 
@@ -157,6 +163,10 @@
         <span class="result-label">Greenshastighet</span>
         <span id="result-stimp" class="result-value">10</span>
         <span class="result-sub">Stimp</span>
+      </div>
+      <div class="result-card">
+        <span class="result-label">Datakälla</span>
+        <span id="result-confidence" class="result-value" style="font-size:14px">Procedurellt</span>
       </div>
     </div>
     <div class="speed-recommendation">

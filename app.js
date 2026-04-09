@@ -56,14 +56,14 @@
     setupEventListeners();
   }
 
-  function initScene() {
+  async function initScene() {
     const canvas = document.getElementById('ar-canvas');
 
     // Renderer
     App.renderer = new THREE.WebGLRenderer({
       canvas: canvas,
       antialias: true,
-      alpha: false,
+      alpha: true, // MUST be true for video to show through!
     });
     App.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     App.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -75,8 +75,10 @@
 
     // Scene
     App.scene = new THREE.Scene();
-    App.scene.background = new THREE.Color(0x0D1F14);
-    App.scene.fog = new THREE.FogExp2(0x0D1F14, 0.04);
+    // Inget bakgrundsfärg! Måste vara helt transparent för AR
+    App.scene.background = null; 
+    // Dimman skapar problem i AR
+    App.scene.fog = null;
 
     // Camera — elevated angle looking down at the green
     App.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
@@ -109,10 +111,13 @@
     App.scene.add(rimLight);
 
     // Ground plane (dark underneath the green mesh)
+    // Sänker alpha på skuggbakgrunden så vi ser gräset i kameran
     const groundGeom = new THREE.PlaneGeometry(50, 50);
     const groundMat = new THREE.MeshStandardMaterial({
       color: 0x0A1A0F,
       roughness: 1,
+      transparent: true,
+      opacity: 0.15 
     });
     const ground = new THREE.Mesh(groundGeom, groundMat);
     ground.rotation.x = -Math.PI / 2;
@@ -122,7 +127,14 @@
 
     // Generate terrain
     App.terrain = new GreenTerrain(App.scene);
-    App.terrain.generate();
+    try {
+        await App.terrain.loadFromJSON('data/heightmap.json');
+        App.dataSource = 'lantmateriet';
+    } catch (e) {
+        console.error("Could not load LiDAR data, falling back to procedural:", e);
+        App.terrain.generate();
+        App.dataSource = 'procedural';
+    }
 
     // Init physics
     App.physics = new BallPhysics(App.terrain);
@@ -131,8 +143,28 @@
     // Start animation loop
     animate();
 
+    // Start real camera
+    await startCamera();
+
     // Simulate scanning
     simulateScanning();
+  }
+
+  // ============ CAMERA STREAM ============
+  async function startCamera() {
+    try {
+      const video = document.getElementById('ar-video');
+      // Begär enhetens bakre kamera (environment)
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false
+      });
+      video.srcObject = stream;
+    } catch (err) {
+      console.error("Kamera-åtkomst nekades eller enhet saknas: ", err);
+      // Fallback: Låt koden köra vidare men bakgrunden förblir svart
+      document.getElementById('ar-video').style.background = "#121212";
+    }
   }
 
   // ============ SCANNING ANIMATION ============
@@ -344,8 +376,18 @@
     event.preventDefault();
 
     const rect = App.renderer.domElement.getBoundingClientRect();
-    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
-    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    // Lösning för mobila touchskärmar: använd changedTouches vid 'touchend'
+    let clientX, clientY;
+    if (event.changedTouches && event.changedTouches.length > 0) {
+      clientX = event.changedTouches[0].clientX;
+      clientY = event.changedTouches[0].clientY;
+    } else if (event.touches && event.touches.length > 0) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
 
     App.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     App.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
@@ -523,6 +565,9 @@
       distText = `${(result.distance * 1.0936).toFixed(1)} yd`;
     }
     document.getElementById('result-distance').textContent = distText;
+    
+    document.getElementById('result-confidence').textContent = 
+      App.dataSource === 'lantmateriet' ? '14 milj. punkter LiDAR' : 'Procedurellt';
 
     // Break
     let breakText = `${result.breakAmount.toFixed(1)} cm`;
